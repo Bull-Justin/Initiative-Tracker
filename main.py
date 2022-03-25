@@ -1,23 +1,52 @@
 import discord
 from random import randint
 import os
+import re
 
 client = discord.Client()
 
-github_link = ''
+github_link = 'https://github.com/Bull-Justin/Initiative-Tracker'
 help_message_add = 'To use: \n\t#add {Character Name} {Weapon Speed and/or Initiative Modifier} - Add to the initiative\n\t#reset - Reset the initiative tracker\n\t#edit {Character Name} {Weapon Speed and/or Initiative Modifier} - Edit an existing characters roll'
 help_message_git = 'Command and Explanations at: ' + github_link
 
-current_initiative_list = []  # To hold all the players
+current_initiative_list = [] 																		# To hold all the players
+
+
+class DuplicateName(Exception):
+	pass
+
+
+class NoName(Exception):
+	pass
+
+
+class PlayerCharacter:
+	def __init__(self):
+		self.character_name = None
+		self.initiative_roll = None
+		self.attack_modifier = 0
+		self.character_number = None
+
+	def __init__(self, character_name, attack_modifier, counter):
+		self.character_name = character_name
+		self.attack_modifier = attack_modifier
+		self.character_number = counter
+		self.initiative_roll = initiative_d10(attack_modifier)
+
+	def edit(self, new_mod):
+		self.attack_modifier = new_mod
+
+	def reroll(self):
+		self.initiative_roll = initiative_d10(self.attack_modifier)
+		self.__str__()
+
+	def __str__(self):
+		return '{}:\t{} {}'.format(self.character_number,self.character_name,self.initiative_roll)
 
 
 # Default Initiative in ADD is a D10 +- Weapon Speed and/or Dex Modifier
-def initiative_d10(user_modifier):
-	return randint(1, 11) + user_modifier
-
-
-def repeat():
-	print(repeat)
+def initiative_d10(modifier):
+	return randint(1, 10) + modifier
 
 
 @client.event
@@ -35,36 +64,43 @@ async def on_message(user_message):
 		await user_message.channel.send(help_message_git)
 
 	if user_message.content.startswith('#add'):
-		# Fix a few of the edge cases that need to be handled.
-		# Need to take in multi-word names
-		# If last token is not a digit, default to 0, otherwise the last token will be the modifier.
-		# Check extremely large and small edge cases
-		# Double check for NULL inputs.
+		if current_initiative_list:
+			counter = current_initiative_list[len(current_initiative_list)-1].character_number
+		else:
+			counter = 0
+		modifier = 0
 		tokens = user_message.content.split(' ')
 		print(len(tokens))
-		print(tokens)
 		try:
-			if len(tokens) == 1:
+			if len(tokens) == 1: 																	# Only calling #add
 				raise Exception('You Fool! Are you not a person? Give your character a name!')
-			elif len(tokens) > 3:
-				raise Exception('You Fool! You gave too Many Arguments!')
-			elif len(tokens) == 3:
-				if not tokens[2].isdigit():
-					raise TypeError('You Fool! You must put a modifier as an whole number!')
-				initiative_roll = initiative_d10(int(tokens[2]))
 			else:
-				initiative_roll = initiative_d10(0)
+				character_info = user_message.content[4:]  											# Remove the command from the string
+				character_info = ' '.join(re.findall(r"[^()0-9-]+", character_info))  				# Get the name from the string
+				character_info = character_info.rstrip()											# Remove any extra whitespace
 
-			current_initiative_list.append(tokens[1])
-			current_initiative_list.append(initiative_roll)
+				if any(x.character_name == character_info for x in current_initiative_list):		# Doesn't allow duplicate names
+					raise DuplicateName('What are you, a Mimic? A character already has that name. Choose another!')
 
-			await user_message.channel.send('{} rolled a {}'.format(tokens[1], initiative_roll))
-		except:
+				if tokens[len(tokens) - 1].lstrip('-').isdigit() or tokens[len(tokens) - 1].lstrip('+').isdigit():
+					modifier = int(tokens[len(tokens) - 1])											# Grabs number with +/- at the beginning
+			counter += 1
+			PC = PlayerCharacter(character_info, modifier, counter)
+			current_initiative_list.append(PC)
+			await user_message.channel.send('{} rolled a {}'.format(current_initiative_list[counter-1].character_name, current_initiative_list[counter-1].initiative_roll))
+		except Exception as E:
+			await user_message.channel.send(E)
 			pass
 		finally:
 			print('Complete #add')
 
-	if user_message.content.startswith('#edit'):  # Might move to a class function
+	if user_message.content.startswith('#edit'): 													 # Might move to a class function
+		try:
+			command_content = user_message.content[4:]
+
+		except Exception as E:
+			await user_message.channel.send(E)
+
 		print('Editing')
 
 	if user_message.content.startswith('#reset'):
@@ -72,7 +108,7 @@ async def on_message(user_message):
 		print('Completed #reset')
 		await user_message.channel.send('*Initiative Wiped*')
 
-	if user_message.content.startswith('#order'):  # Works just finish formatting the output correctly
+	if user_message.content.startswith('#order'):  													# Works just finish formatting the output correctly
 		try:
 			if len(current_initiative_list) == 0:
 				raise IndexError('You silly goose, there isn\'t anyone in the initiative right now')
@@ -82,13 +118,15 @@ async def on_message(user_message):
 				Message format should be: 	Initiative order is:
 											Counter:	Character_Name Roll
 				'''
+				current_initiative_list.sort(key=lambda x: x.initiative_roll, reverse=True)			# Sort the order by initiative, Lower = Better
+
 				initiative_order = 1
 				await user_message.channel.send('Initiative order is: ')
-				character_order = '```'
-				for i in range(0, len(current_initiative_list), 2):
-					character_order += ('{}:\t{}\t{}\n'.format(initiative_order, current_initiative_list[i], current_initiative_list[i+1]))
+				character_order = '```'																# Discord Formatting
+				for i in range(len(current_initiative_list)):										# Format the output for Initiative Order
+					character_order += ('{}:\t{}\t({})\n'.format(initiative_order, current_initiative_list[i].character_name, current_initiative_list[i].initiative_roll))
 					initiative_order += 1
-				character_order += '```'
+				character_order += '```'															# Discord Formatting
 				await user_message.channel.send(character_order)
 		except IndexError as EmptyList:
 			await user_message.channel.send(EmptyList)
