@@ -6,10 +6,11 @@ import re
 client = discord.Client()
 
 github_link = 'https://github.com/Bull-Justin/Initiative-Tracker'
-help_message_add = 'To use: \n\t#add {Character Name} {Weapon Speed and/or Initiative Modifier} - Add to the initiative\n\t#reset - Reset the initiative tracker\n\t#edit {Character Name} {Weapon Speed and/or Initiative Modifier} - Edit an existing characters roll'
+help_message_add = 'To use: \n\t#add {Character Name} {Weapon Speed and/or Initiative Modifier} - Add to the initiative\n\t#reset - Reset the initiative tracker\n\t#order - Prints the current Initiative Order'
 help_message_git = 'Command and Explanations at: ' + github_link
 
-current_initiative_list = [] 																		# To hold all the players
+# To hold all the players
+current_initiative_list = []
 
 
 class DuplicateName(Exception):
@@ -25,12 +26,10 @@ class PlayerCharacter:
 		self.character_name = None
 		self.initiative_roll = None
 		self.attack_modifier = 0
-		self.character_number = None
 
-	def __init__(self, character_name, attack_modifier, counter):
+	def __init__(self, character_name, attack_modifier):
 		self.character_name = character_name
 		self.attack_modifier = attack_modifier
-		self.character_number = counter
 		self.initiative_roll = initiative_d10(attack_modifier)
 
 	def edit(self, new_mod):
@@ -64,10 +63,6 @@ async def on_message(user_message):
 		await user_message.channel.send(help_message_git)
 
 	if user_message.content.startswith('#add'):
-		if current_initiative_list:
-			counter = current_initiative_list[len(current_initiative_list)-1].character_number
-		else:
-			counter = 0
 		modifier = 0
 		tokens = user_message.content.split(' ')
 		print(len(tokens))
@@ -84,31 +79,23 @@ async def on_message(user_message):
 
 				if tokens[len(tokens) - 1].lstrip('-').isdigit() or tokens[len(tokens) - 1].lstrip('+').isdigit():
 					modifier = int(tokens[len(tokens) - 1])											# Grabs number with +/- at the beginning
-			counter += 1
-			PC = PlayerCharacter(character_info, modifier, counter)
+
+			PC = PlayerCharacter(character_info, modifier)
 			current_initiative_list.append(PC)
-			await user_message.channel.send('{} rolled a {}'.format(current_initiative_list[counter-1].character_name, current_initiative_list[counter-1].initiative_roll))
+			await user_message.channel.send('{} rolled a {}'.format(current_initiative_list[len(current_initiative_list)-1].character_name, current_initiative_list[len(current_initiative_list)-1].initiative_roll))
 		except Exception as E:
 			await user_message.channel.send(E)
 			pass
 		finally:
 			print('Complete #add')
 
-	if user_message.content.startswith('#edit'): 													 # Might move to a class function
-		try:
-			command_content = user_message.content[4:]
-
-		except Exception as E:
-			await user_message.channel.send(E)
-
-		print('Editing')
-
 	if user_message.content.startswith('#reset'):
 		current_initiative_list.clear()
 		print('Completed #reset')
 		await user_message.channel.send('*Initiative Wiped*')
 
-	if user_message.content.startswith('#order'):  													# Works just finish formatting the output correctly
+	# Works just finish formatting the output correctly
+	if user_message.content.startswith('#order'):
 		try:
 			if len(current_initiative_list) == 0:
 				raise IndexError('You silly goose, there isn\'t anyone in the initiative right now')
@@ -118,7 +105,7 @@ async def on_message(user_message):
 				Message format should be: 	Initiative order is:
 											Counter:	Character_Name Roll
 				'''
-				current_initiative_list.sort(key=lambda x: x.initiative_roll, reverse=True)			# Sort the order by initiative, Lower = Better
+				current_initiative_list.sort(key=lambda x: x.initiative_roll, reverse=False)		# Sort the order by initiative, Lower = Better
 
 				initiative_order = 1
 				await user_message.channel.send('Initiative order is: ')
