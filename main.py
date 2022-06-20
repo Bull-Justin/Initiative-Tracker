@@ -1,3 +1,11 @@
+"""
+Project: Initiative Tracker for Adventures Dark and Deep
+Author: Justin Bull
+Purpose: Discord bot that allows for ease of tracking initiative during combat in Adventures Dark and Deep
+"""
+
+
+
 import discord
 from random import randint
 import os
@@ -40,7 +48,7 @@ class PlayerCharacter:
 		self.__str__()
 
 	def __str__(self):
-		return '{}:\t{} {}'.format(self.character_number,self.character_name,self.initiative_roll)
+		return '{} ({})'.format(self.character_name,self.initiative_roll)
 
 
 # Default Initiative in ADD is a D10 +- Weapon Speed and/or Dex Modifier
@@ -61,11 +69,13 @@ async def on_message(user_message):
 	if user_message.content.startswith('#help'):
 		await user_message.channel.send(help_message_add)
 		await user_message.channel.send(help_message_git)
+		await user_message.edit(suppress=True) # Remove Embedded image pop-up
 
 	if user_message.content.startswith('#add'):
 		modifier = 0
 		tokens = user_message.content.split(' ')
 		print(len(tokens))
+		index = len(current_initiative_list)
 		try:
 			if len(tokens) == 1: 																	# Only calling #add
 				raise Exception('You Fool! Are you not a person? Give your character a name!')
@@ -82,16 +92,16 @@ async def on_message(user_message):
 
 			PC = PlayerCharacter(character_info, modifier)
 			current_initiative_list.append(PC)
-			await user_message.channel.send('{} rolled a {}'.format(current_initiative_list[len(current_initiative_list)-1].character_name, current_initiative_list[len(current_initiative_list)-1].initiative_roll))
+			await user_message.channel.send('{} rolled a {}'.format(current_initiative_list[index].character_name, current_initiative_list[index].initiative_roll))
 		except Exception as E:
 			await user_message.channel.send(E)
 			pass
-		finally:
-			print('Complete #add')
+#		finally:
+#			print('Complete #add')
 
 	if user_message.content.startswith('#reset'):
 		current_initiative_list.clear()
-		print('Completed #reset')
+#		print('Completed #reset')
 		await user_message.channel.send('*Initiative Wiped*')
 
 	# Works just finish formatting the output correctly
@@ -111,14 +121,21 @@ async def on_message(user_message):
 				await user_message.channel.send('Initiative order is: ')
 				character_order = '```'																# Discord Formatting
 				for i in range(len(current_initiative_list)):										# Format the output for Initiative Order
-					character_order += ('{}:\t{}\t({})\n'.format(initiative_order, current_initiative_list[i].character_name, current_initiative_list[i].initiative_roll))
+					character_order += ('{}:\t{}\n'.format(initiative_order, current_initiative_list[i]))  # Better looking using __str__
 					initiative_order += 1
 				character_order += '```'															# Discord Formatting
 				await user_message.channel.send(character_order)
 		except IndexError as EmptyList:
 			await user_message.channel.send(EmptyList)
 			pass
-		finally:
-			print('Completed #order')
+#		finally:
+#			print('Completed #order')
 
+	if user_message.content.startswith('#reroll'):
+		if len(current_initiative_list) == 0:
+			raise Exception('There is no one in the initiative right now, add with #add')
+		else:
+			for i in range(len(current_initiative_list)):
+				current_initiative_list[i].reroll()
+		await user_message.channel.send('The initiative was rerolled!')
 client.run(os.environ['TOKEN'])
